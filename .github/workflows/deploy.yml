@@ -1,0 +1,52 @@
+name: Deploy CloudFormation
+
+on:
+  push:
+    branches: [ "main" ]
+    paths: [ "stacks/**.yaml" ]
+  workflow_dispatch:
+
+jobs:
+  deploy_dev:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::912448661623:role/github-actions-deploy
+          aws-region: us-east-2
+
+      - name: Install AWS CLI
+        uses: unfor19/install-aws-cli-action@v1
+
+      - name: Validate template
+        run: aws cloudformation validate-template --template-body file://stacks/s3-buckets.yaml
+
+      - name: Deploy to DEV
+        run: |
+          aws cloudformation deploy \
+            --stack-name my-s3-dev \
+            --template-file stacks/s3-buckets.yaml \
+            --parameter-overrides ProjectName=maxmodus Env=dev \
+            --no-fail-on-empty-changeset
+
+  deploy_prod:
+    needs: deploy_dev
+    runs-on: ubuntu-latest
+    environment: prod   # optional: protect with "Required reviewers" in repo Settings → Environments
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::912448661623:role/github-actions-deploy
+          aws-region: us-east-2
+      - uses: unfor19/install-aws-cli-action@v1
+      - name: Deploy to PROD
+        run: |
+          aws cloudformation deploy \
+            --stack-name my-s3-prod \
+            --template-file stacks/s3-buckets.yaml \
+            --parameter-overrides ProjectName=maxmodus Env=prod \
+            --no-fail-on-empty-changeset
