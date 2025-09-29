@@ -1,58 +1,309 @@
-name: Deploy CloudFormation
-
-permissions:
-  id-token: write    # <-- REQUIRED for OIDC
-  contents: read     # <-- allows actions/checkout to read the repo
-
-on:
-  push:
-    branches: [ "main" ]
-    paths: [ "stacks/**.yaml" ]
-  workflow_dispatch:
-
-jobs:
-  deploy_dev:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v5
-        with:
-          role-to-assume: arn:aws:iam::201730504434:role/github-actions-deploy
-          aws-region: us-east-2
-      - name: Who am I?
-        run: aws sts get-caller-identity
-
-      - name: Install AWS CLI
-        uses: unfor19/install-aws-cli-action@v1
-
-      - name: Validate template
-        run: aws cloudformation validate-template --template-body file://stacks/s3-buckets.yaml
-
-      - name: Deploy to DEV
-        run: |
-          aws cloudformation deploy \
-            --stack-name my-s3-dev \
-            --template-file stacks/s3-buckets.yaml \
-            --parameter-overrides ProjectName=maxmodus Env=dev \
-            --no-fail-on-empty-changeset
-
-  deploy_prod:
-    needs: deploy_dev
-    runs-on: ubuntu-latest
-    environment: prod   # optional: protect with "Required reviewers" in repo Settings → Environments
-    steps:
-      - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v5
-        with:
-          role-to-assume: arn:aws:iam::201730504434:role/github-actions-deploy
-          aws-region: us-east-2
-      - uses: unfor19/install-aws-cli-action@v1
-      - name: Deploy to PROD
-        run: |
-          aws cloudformation deploy \
-            --stack-name my-s3-prod \
-            --template-file stacks/s3-buckets.yaml \
-            --parameter-overrides ProjectName=maxmodus Env=prod \
-            --no-fail-on-empty-changeset
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Minimal infra - ONE S3 bucket + ONE DynamoDB table (Env defaults to smbdev)
+Parameters:
+  Env:
+    Type: String
+    Default: smbdev
+    AllowedPattern: '^[a-z0-9-]+$'
+  ProjectName:
+    Type: String
+    AllowedPattern: '^[a-z0-9-]+$'
+  TableBaseName:
+    Type: String
+    Default: items
+Metadata:
+  AWSToolsMetrics:
+    IaC_Generator: "arn:aws:cloudformation:us-east-2:912448661623:generatedTemplate/98e71ba6-928e-4f48-86e0-3cf283ac158f"
+Resources:
+  DynamoDBTableCustomerenquirytable:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::DynamoDB::Table"
+    Properties:
+      SSESpecification:
+        SSEEnabled: false
+      TableName: "customer_enquiry_table-smbdev1"
+      AttributeDefinitions:
+      - AttributeType: "S"
+        AttributeName: "session_id"
+      ContributorInsightsSpecification:
+        Enabled: false
+      BillingMode: "PAY_PER_REQUEST"
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      WarmThroughput:
+        ReadUnitsPerSecond: 12000
+        WriteUnitsPerSecond: 4000
+      KeySchema:
+      - KeyType: "HASH"
+        AttributeName: "session_id"
+      DeletionProtectionEnabled: false
+      TableClass: "STANDARD"
+      Tags: []
+      TimeToLiveSpecification:
+        Enabled: false
+  S3BucketDivyaaiagentemailjson:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        BlockPublicAcls: true
+      BucketName: "divya-aiagent-email-json-smbdev1"
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: "BucketOwnerEnforced"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: true
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: "AES256"
+  S3BucketSmbmodelevaluationwest1rep:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        BlockPublicAcls: true
+      BucketName: !Sub '${ProjectName}-${Env}-${AWS::AccountId}-${AWS::Region}'
+      VersioningConfiguration:
+        Status: "Enabled"
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: "BucketOwnerEnforced"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: true
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: "AES256"
+  S3BucketSmbhumanfeedback:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        BlockPublicAcls: true
+      BucketName: "smb-human-feedback-smbdev1"
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: "BucketOwnerEnforced"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: true
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: "AES256"
+  S3AccessPointSmbemailreceivervpcep1:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::S3::AccessPoint"
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        BlockPublicAcls: true
+      BucketAccountId: "912448661623"
+      VpcConfiguration:
+        VpcId: "vpc-09e7748e2a5086602"
+      Bucket:
+        Ref: "S3BucketSmbemailreceiver"
+      Tags: []
+      Name: "smb-email-receiver-vpcep1"
+  S3BucketDivyaaiagentemail:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        BlockPublicAcls: true
+      BucketName: "divya-aiagent-email-smbdev1"
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: "BucketOwnerEnforced"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: true
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: "AES256"
+  S3BucketPythonlibsmaxmodus:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        BlockPublicAcls: true
+      BucketName: "python-libs-maxmodus-smbdev1"
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: "BucketOwnerEnforced"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: true
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: "AES256"
+  S3BucketJewelerydata:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        BlockPublicAcls: true
+      BucketName: "jewelerydata-smbdev1"
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: "BucketOwnerEnforced"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: true
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: "AES256"
+  S3BucketSmbemailreceiver:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        BlockPublicAcls: true
+      BucketName: "smb-email-receiver-smbdev1"
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: "BucketOwnerEnforced"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: true
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: "AES256"
+  S3BucketSmbcatknowledge:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        BlockPublicAcls: true
+      BucketName: "smb-cat-knowledge-smbdev1"
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: "BucketOwnerEnforced"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: true
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: "AES256"
+  S3BucketSmbmodelevaluation:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: false
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        BlockPublicAcls: true
+      BucketName: "smb-model-evaluation-smbdev1"
+      CorsConfiguration:
+        CorsRules:
+        - ExposedHeaders:
+          - "Access-Control-Allow-Origin"
+          AllowedMethods:
+          - "GET"
+          - "PUT"
+          - "POST"
+          - "DELETE"
+          AllowedOrigins:
+          - "*"
+          AllowedHeaders:
+          - "*"
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: "BucketOwnerEnforced"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: true
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: "AES256"
+  S3BucketAwsqdev1:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        BlockPublicAcls: true
+      BucketName: "awsqdev1-smbdev1"
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: "BucketOwnerEnforced"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: true
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: "AES256"
+  S3BucketDivyaemailreceiverjson:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        BlockPublicAcls: true
+      BucketName: "divya-email-receiver-json-smbdev1"
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: "BucketOwnerEnforced"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: true
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: "AES256"
+  S3BucketDivyasmbsamesenderreceiver:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        BlockPublicAcls: true
+      BucketName: "divya-smb-same-sender-receiver-smbdev1"
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: "BucketOwnerEnforced"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: true
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: "AES256"
+  S3BucketSmbcustomerenquirykb2:
+    UpdateReplacePolicy: "Retain"
+    Type: "AWS::S3::Bucket"
+    Properties:
+      PublicAccessBlockConfiguration:
+        RestrictPublicBuckets: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        BlockPublicAcls: true
+      BucketName: "smb-customer-enquiry-kb2-smbdev1"
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: "BucketOwnerEnforced"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - BucketKeyEnabled: true
+          ServerSideEncryptionByDefault:
+            SSEAlgorithm: "AES256"
