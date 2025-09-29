@@ -27,7 +27,7 @@ jobs:
       - name: Configure AWS (DEV)
         uses: aws-actions/configure-aws-credentials@v5
         with:
-          role-to-assume: arn:aws:iam::<DEV_ACCOUNT_ID>:role/github-actions-deploy
+          role-to-assume: arn:aws:iam::201730504434:role/github-actions-deploy
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Validate template
@@ -39,27 +39,4 @@ jobs:
             --stack-name "${{ env.STACK_NAME_DEV }}" \
             --template-file "${{ env.TEMPLATE_FILE }}" \
             --parameter-overrides ${{ env.PARAMS_DEV }} \
-            --no-fail-on-empty-changeset
-
-  deploy_smbdev:
-    needs: deploy_dev
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Configure AWS (SMBDEV)
-        uses: aws-actions/configure-aws-credentials@v5
-        with:
-          role-to-assume: arn:aws:iam::<SMBDEV_ACCOUNT_ID>:role/github-actions-deploy
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Validate template
-        run: aws cloudformation validate-template --template-body file://${{ env.TEMPLATE_FILE }}
-
-      - name: Deploy to SMBDEV
-        run: |
-          aws cloudformation deploy \
-            --stack-name "${{ env.STACK_NAME_SMBDEV }}" \
-            --template-file "${{ env.TEMPLATE_FILE }}" \
-            --parameter-overrides ${{ env.PARAMS_SMBDEV }} \
             --no-fail-on-empty-changeset
