@@ -7,7 +7,10 @@ permissions:
 on:
   push:
     branches: [ "main" ]
-    paths: [ "stacks/**.yaml" ]
+    paths:
+      - "stacks/**/*.yaml"
+      - ".github/workflows/deploy.yml"
+
   workflow_dispatch:
 
 env:
@@ -16,7 +19,6 @@ env:
   STACK_NAME_DEV: my-core-dev
   STACK_NAME_SMBDEV: my-core-smbdev
   PARAMS_DEV: "ProjectName=maxmodus Env=dev"
-  PARAMS_SMBDEV: "ProjectName=maxmodus Env=smbdev"
 
 jobs:
   deploy_dev:
@@ -24,11 +26,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Show repo/ref and files so we know we're on the right branch and the template exists
+      - name: Debug repo/ref + list files
+        run: |
+          echo "GITHUB_REPOSITORY=$GITHUB_REPOSITORY"
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "pwd=$(pwd)"
+          ls -R
+
       - name: Configure AWS (DEV)
         uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::201730504434:role/github-actions-deploy
           aws-region: ${{ env.AWS_REGION }}
+          
+      # If role assumption works, this prints your caller identity
+      - name: Who am I?
+        run: aws sts get-caller-identity
+
 
       - name: Validate template
         run: aws cloudformation validate-template --template-body file://${{ env.TEMPLATE_FILE }}
