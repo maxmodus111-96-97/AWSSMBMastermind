@@ -1,4 +1,4 @@
-name: Deploy CloudFormation
+name: OIDC STS debug
 
 permissions:
   id-token: write
@@ -14,31 +14,24 @@ on:
 
 env:
   AWS_REGION: us-east-2
-  TEMPLATE_FILE: stacks/s3-dynamodb.yaml
-  STACK_NAME: my-core-smbdev
-  PARAMS: "ProjectName=maxmodus Env=smbdev"
 
 jobs:
-  deploy:
+  oidc_test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      - name: Debug repo/ref
+        run: |
+          echo "GITHUB_REPOSITORY=$GITHUB_REPOSITORY"
+          echo "GITHUB_REF=$GITHUB_REF"
+
       - name: Configure AWS (assume role)
         uses: aws-actions/configure-aws-credentials@v5
         with:
-          role-to-assume: arn:aws:iam::201730504434:role/github-actions-deploy   
+          role-to-assume: arn:aws:iam::201730504434:role/github-actions-deploy   # <-- put the EXACT target account & role here
           aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.run_id }}
 
-      - name: Validate template
-        run: aws cloudformation validate-template --template-body file://${{ env.TEMPLATE_FILE }}
-
-      - name: Deploy
-        run: |
-          aws cloudformation deploy \
-            --stack-name "${{ env.STACK_NAME }}" \
-            --template-file "${{ env.TEMPLATE_FILE }}" \
-            --parameter-overrides ${{ env.PARAMS }} \
-            --no-fail-on-empty-changeset
-            # If your template creates IAM roles/policies, also add:
-            # --capabilities CAPABILITY_NAMED_IAM
+      - name: Who am I?
+        run: aws sts get-caller-identity
