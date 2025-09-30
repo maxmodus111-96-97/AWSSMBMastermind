@@ -1,4 +1,4 @@
-name: Deploy CloudFormation
+name: Deploy CloudFormation (this account)
 
 permissions:
   id-token: write
@@ -13,10 +13,10 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: us-east-2
-  TEMPLATE_FILE: stacks/s3-dynamodb.yaml
-  STACK_NAME: my-core-smbdev
-  PARAMS: "ProjectName=maxmodus Env=smbdev"
+  AWS_REGION: us-east-2                      # your console shows Ohio
+  TEMPLATE_FILE: stacks/s3-buckets.yaml          # set to your actual template path
+  STACK_NAME: core-stack
+  PARAMS: "ProjectName=maxmodus Env=smbdev" # or whatever your template expects
 
 jobs:
   deploy:
@@ -24,10 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS (assume role)
+      - name: Configure AWS (assume role in THIS account)
         uses: aws-actions/configure-aws-credentials@v5
         with:
-          role-to-assume: arn:aws:iam::201730504434:role/github-actions-deploy
+          role-to-assume: arn:aws:iam::201730504434:role/github-actions-deploy   # <- paste ARN from step A3
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-${{ github.run_id }}
 
@@ -44,5 +44,5 @@ jobs:
             --template-file "${{ env.TEMPLATE_FILE }}" \
             --parameter-overrides ${{ env.PARAMS }} \
             --no-fail-on-empty-changeset
-          # If your template creates IAM resources, also add:
+          # add if your template creates IAM:
           # --capabilities CAPABILITY_NAMED_IAM
